@@ -1,0 +1,957 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Pacotes ────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, calc, backgrounds}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{amsmath}
+
+% ── Geometria ──────────────────────────────────────────────────
+\geometry{margin=2.5cm}
+
+% ── Cores ──────────────────────────────────────────────────────
+\definecolor{azul}{RGB}{10,63,63}
+\definecolor{verde}{RGB}{7,224,0}
+\definecolor{vermelho}{RGB}{248,0,0}
+\definecolor{amarelo}{RGB}{255,224,0}
+\definecolor{ciano}{RGB}{0,127,255}
+\definecolor{cinza}{RGB}{57,231,7}
+\definecolor{bgcode}{RGB}{245,245,245}
+
+% ── Listings ───────────────────────────────────────────────────
+\lstset{
+  backgroundcolor=\color{bgcode},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{azul}\bfseries,
+  commentstyle=\color{gray},
+  stringstyle=\color{vermelho},
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2
+}
+
+% ── Cabeçalho/Rodapé ──────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Manual de Usuário --- Monitor de Qualidade da Água}
+\fancyhead[R]{\small UFMT --- Instrumentação Industrial II}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Título ─────────────────────────────────────────────────────
+\title{
+  \vspace{-1cm}
+  \textbf{\Huge Monitor Portátil de Qualidade da Água} \\[0.5cm]
+  \textbf{\Large Manual de Usuário} \\[0.3cm]
+  \large ESP32 DevKit V3 + TFT ST7789 + ADS1115
+}
+\author{
+  Projeto --- Instrumentação Industrial II \\
+  Universidade Federal de Mato Grosso (UFMT) \\
+  Engenharia de Controle e Automação
+}
+\date{Cuiabá --- 2026}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+  \textit{Este manual descreve o uso do Monitor Portátil de Qualidade da Água,\\
+  dispositivo embarcado para medição de pH, TDS, turbidez e temperatura.}
+\end{center}
+\newpage
+
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════
+% 1. INTRODUÇÃO
+% ══════════════════════════════════════════════════════════════
+\section{Introdução}
+
+O \textbf{Monitor Portátil de Qualidade da Água} é um dispositivo embarcado desenvolvido como projeto da disciplina \textbf{Instrumentação Industrial II} do curso de Engenharia de Controle e Automação da UFMT.
+
+O dispositivo realiza medições \textbf{standalone} (sem necessidade de internet) dos seguintes parâmetros da água:
+
+\begin{itemize}[nosep]
+  \item \textbf{pH} --- acidez/alcalinidade (sensor PH4502C)
+  \item \textbf{TDS} --- Total de Sólidos Dissolvidos em ppm (sensor Gravity Analog)
+  \item \textbf{Turbidez} --- Clareza da água em NTU (sensor TS-300B)
+  \item \textbf{Temperatura} --- em graus Celsius (sensor DS18B20)
+\end{itemize}
+
+Os resultados são exibidos em um display TFT de 2,0 polegadas e salvos em um cartão SD no formato CSV.
+
+\subsection{Fases do Projeto}
+
+\begin{description}[style=nextline]
+  \item[Fase 1 --- MVP] Operação standalone: sensores, display, registro em SD, calibração via NVS. \textbf{Implementada.}
+  \item[Fase 2 --- Web] Servidor HTTP local via Wi-Fi: \texttt{GET /leituras} (JSON), \texttt{POST /registrar}. \textbf{Planejada.}
+\end{description}
+
+% ══════════════════════════════════════════════════════════════
+% 2. ESPECIFICAÇÕES TÉCNICAS
+% ══════════════════════════════════════════════════════════════
+\section{Especificações Técnicas}
+
+\subsection{Componentes}
+
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Componente} & \textbf{Modelo} & \textbf{Interface} & \textbf{Observação} \\
+\midrule
+Microcontrolador & ESP32 DevKit V3 & --- & Lógica 3,3\,V \\
+ADC & ADS1115 16-bit & I²C @ 0x48 & Alimentado em 5\,V \\
+Sensor pH & PH4502C & Analógico (AIN2) & Alimentação 5\,V, saída 1,0--4,0\,V \\
+Sensor TDS & Gravity Analog & Analógico (AIN1) & Saída máxima 2,3\,V \\
+Sensor Turbidez & TS-300B & Analógico (AIN0) & Alimentação 5\,V \\
+Temperatura & DS18B20 & 1-Wire (GPIO 13) & Pull-up 4,7\,k$\Omega$ \\
+Display & TFT 2,0" ST7789 & SPI & 320$\times$240, paisagem \\
+Cartão SD & Micro SD SPI & SPI & 3,3\,V, FAT32 \\
+Conversor de nível & TXS0108E & Digital (I²C) & VCCA=3,3\,V, VCCB=5\,V \\
+Buzzer & Ativo & GPIO 26 & Alertas sonoros \\
+Botões (3$\times$) & Tácteis & GPIO 32/33/25 & INPUT\_PULLUP \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Pinout --- Barramento SPI}
+
+O barramento SPI é compartilhado entre o TFT e o Cartão SD.
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{GPIO} & \textbf{Função} & \textbf{Destino} \\
+\midrule
+GPIO 18 & SCK & TFT SCL + SD SCK \\
+GPIO 23 & MOSI & TFT SDA + SD MOSI \\
+GPIO 19 & MISO & SD apenas (TFT não usa) \\
+GPIO 5 & CS TFT & Chip Select do TFT \\
+GPIO 17 & DC TFT & Data/Command do TFT \\
+GPIO 4 & RST TFT & Reset do TFT \\
+GPIO 15 & CS SD & Chip Select do SD \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Pinout --- Barramento I²C}
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{GPIO} & \textbf{Função} & \textbf{Encadeamento} \\
+\midrule
+GPIO 21 & SDA & TXS0108E A2 $\rightarrow$ B2 $\rightarrow$ ADS1115 SDA \\
+GPIO 22 & SCL & TXS0108E A1 $\rightarrow$ B1 $\rightarrow$ ADS1115 SCL \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Canais do ADS1115}
+
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Canal} & \textbf{Sensor} & \textbf{Faixa} & \textbf{Observação} \\
+\midrule
+AIN0 & Turbidez TS-300B & Curva empírica & Regressão 2º grau \\
+AIN1 & TDS Gravity & 0--2,3\,V & Compensação térmica \\
+AIN2 & pH PH4502C & 1,0--4,0\,V & Calibração 3 pontos \\
+AIN3 & Reserva & --- & Expansão futura \\
+\bottomrule
+\end{tabularx}
+
+Configuração: endereço \texttt{0x48} (ADDR $\rightarrow$ GND), VDD = 5\,V, ganho \texttt{GAIN\_ONE} ($\pm$4,096\,V).
+
+\subsection{GPIOs Proibidos}
+
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{GPIO(s)} & \textbf{Motivo} \\
+\midrule
+GPIO 6--11 & Flash interna --- trava o boot \\
+GPIO 34--39 & Somente entrada, sem pull-up \\
+GPIO 0 & Botão de boot \\
+GPIO 1 / 3 & TX0 / RX0 (Serial/USB) \\
+GPIO 2 & LED onboard (DC do TFT foi para GPIO 17) \\
+\bottomrule
+\end{tabularx}
+
+GPIOs livres para expansão: 12, 14, 16, 27.
+
+\subsection{Diagrama de Blocos}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={draw, rectangle, minimum height=1cm, minimum width=2.2cm, align=center, font=\small},
+  sensor/.style={draw, rectangle, rounded corners, minimum height=0.8cm, minimum width=1.8cm, align=center, fill=gray!10, font=\small},
+  arrow/.style={-{Stealth[length=3mm]}, thick},
+  i2c/.style={arrow, color=azul},
+  spi/.style={arrow, color=verde},
+  wire/.style={arrow, color=vermelho},
+  label/.style={font=\scriptsize, midway}
+]
+
+% ESP32
+\node[block, fill=azul!10, minimum width=3cm, minimum height=2cm] (esp) at (0,0) {\textbf{ESP32}\\DevKit V3};
+
+% Display
+\node[block, fill=verde!10, right=2.5cm of esp.north east, anchor=south west] (tft) at (0,0.5) {\textbf{TFT ST7789}\\320$\times$240};
+
+% SD Card
+\node[block, fill=verde!10, right=2.5cm of esp.south east, anchor=north west] (sd) at (0,-0.5) {\textbf{Cartão SD}\\Micro SD};
+
+% ADS1115
+\node[block, fill=amarelo!15, left=2.5cm of esp.north east, anchor=south east] (ads) at (0,0.5) {\textbf{ADS1115}\\16-bit ADC};
+
+% TXS0108E
+\node[block, fill=amarelo!10, left=1.5cm of ads] (txs) at (0,0.5) {\textbf{TXS0108E}\\Conversor Nível};
+
+% Sensores
+\node[sensor, left=0.8cm of txs.north, anchor=south] (ph) at (0,0.8) {pH\\PH4502C};
+\node[sensor, left=0.8cm of txs.west, anchor=east] (tds) at (0,0) {TDS\\Gravity};
+\node[sensor, left=0.8cm of txs.south, anchor=north] (turb) at (0,-0.8) {Turbidez\\TS-300B};
+
+% DS18B20
+\node[sensor, below=1.2cm of esp] (temp) {\textbf{DS18B20}\\Temperatura};
+
+% Botões
+\node[sensor, above=1.2cm of esp] (btn) {\textbf{Botões}$\times$3\\NAV / CONF / VOLT};
+
+% Buzzer
+\node[sensor, below left=0.8cm and 0.3cm of esp] (buz) {\textbf{Buzzer}\\GPIO 26};
+
+% Setas SPI
+\draw[spi] (esp.east) -- ++(0.5,0) |- node[label, above]{SPI} (tft.west);
+\draw[spi] (esp.east) -- ++(0.5,0) |- node[label, below]{SPI} (sd.west);
+
+% Setas I2C
+\draw[i2c] (txs.east) -- node[label, above]{I²C 5V} (ads.west);
+
+% Setas sensores analógicos
+\draw[wire] (ph.east) -- node[label, above]{5V} (txs.west |- ph);
+\draw[wire] (tds.east) -- (txs.west |- tds);
+\draw[wire] (turb.east) -- node[label, below]{5V} (txs.west |- turb);
+
+% Setas 1-Wire
+\draw[wire] (esp.south) -- node[label, right]{1-Wire} (temp.north);
+
+% Setas botões
+\draw[arrow] (btn.south) -- node[label, right]{Digital} (esp.north);
+
+% Setas buzzer
+\draw[arrow] (buz.east) -- (esp.south west);
+
+% Legenda
+\node[below=0.3cm of temp, font=\scriptsize, text width=6cm, align=center] {
+  \textcolor{verde}{\rule{1em}{0.5em}} SPI (compartilhado) \quad
+  \textcolor{azul}{\rule{1em}{0.5em}} I²C \quad
+  \textcolor{vermelho}{\rule{1em}{0.5em}} Analógico / 1-Wire
+};
+
+\end{tikzpicture}
+\caption{Diagrama de blocos do sistema}
+\label{fig:diagrama}
+\end{figure}
+
+% ══════════════════════════════════════════════════════════════
+% 3. PRIMEIROS PASSOS
+% ══════════════════════════════════════════════════════════════
+\section{Primeiros Passos}
+
+\subsection{Itens Necessários}
+
+\begin{enumerate}[nosep]
+  \item Dispositivo Monitor de Qualidade da Água (com todos os componentes soldados)
+  \item Cartão Micro SD (formato FAT32, até 32\,GB recomendado)
+  \item Cabo USB Micro ou USB-C (conforme o ESP32 DevKit V3)
+  \item Fonte de alimentação 5\,V (via USB ou banco de carga)
+  \item Soluções tampão para calibração (pH 4,00 / 7,00 / 10,01)
+  \item Solução padrão de TDS (1413\,$\mu$S/cm)
+\end{enumerate}
+
+\subsection{Ligando o Dispositivo}
+
+\begin{enumerate}[nosep]
+  \item Insira o cartão SD no slot (formato FAT32, vazio ou com \texttt{agua\_log.csv})
+  \item Conecte o cabo USB ao ESP32 e a uma fonte de 5\,V
+  \item Aguarde a tela de \textbf{splash} por aproximadamente 2 segundos
+  \item O dispositivo entrará automaticamente na \textbf{Tela de Monitoramento}
+\end{enumerate}
+
+\subsection{Sequência de Boot}
+
+\begin{enumerate}[nosep]
+  \item Inicialização dos botões (INPUT\_PULLUP)
+  \item Inicialização do display TFT ST7789
+  \item Inicialização dos sensores (ADS1115 + DS18B20)
+  \item Carregamento da calibração (NVS $\rightarrow$ backup SD)
+  \item Inicialização do cartão SD
+  \item Exibição da Tela 1 --- Monitoramento
+\end{enumerate}
+
+\subsection{LED de Status}
+
+\begin{itemize}[nosep]
+  \item \textbf{Display ligado} --- o dispositivo está funcionando normalmente
+  \item \textbf{Buzzer bip} --- valor fora do limite ou calibração salva
+  \item \textbf{Serial Monitor} --- mensagens de diagnóstico a cada 2 segundos (115200 baud)
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════
+% 4. TELA DE MONITORAMENTO
+% ══════════════════════════════════════════════════════════════
+\section{Tela de Monitoramento}
+
+A Tela 1 é a \textbf{tela principal}, exibida automaticamente ao ligar o dispositivo. Ela mostra os quatro parâmetros da água em tempo real, atualizados a cada 2 segundos (configurável).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \draw[thick] (0,0) rectangle (8,5.5);
+
+  % Header
+  \fill[azul] (0,5) rectangle (8,5.5);
+  \node[white, anchor=west] at (0.3,5.25) {\textbf{Monitor Qualidade Água}};
+  \node[white, anchor=east] at (7.7,5.25) {\small *};
+
+  % Quadrante pH
+  \fill[cinza!30] (0.1,3) rectangle (3.9,4.9);
+  \node[anchor=west, gray] at (0.3,4.6) {\small pH};
+  \node[verde, font=\Large] at (1.2,3.8) {\textbf{7.02}};
+
+  % Quadrante TDS
+  \fill[cinza!30] (4.1,3) rectangle (7.9,4.9);
+  \node[anchor=west, gray] at (4.3,4.6) {\small TDS};
+  \node[vermelho, font=\Large] at (5.8,3.8) {\textbf{1142}};
+  \node[anchor=west, vermelho] at (6.5,3.8) {\small ppm};
+
+  % Separador
+  \draw[gray] (0,3) -- (8,3);
+
+  % Quadrante Turbidez
+  \fill[cinza!30] (0.1,1.2) rectangle (3.9,2.9);
+  \node[anchor=west, gray] at (0.3,2.6) {\small TURBIDEZ};
+  \node[verde, font=\Large] at (1.5,1.8) {\textbf{4.1}};
+  \node[anchor=west, verde] at (2.2,1.8) {\small NTU};
+
+  % Quadrante Temp
+  \fill[cinza!30] (4.1,1.2) rectangle (7.9,2.9);
+  \node[anchor=west, gray] at (4.3,2.6) {\small TEMP};
+  \node[white, font=\Large] at (5.8,1.8) {\textbf{24.3}};
+  \node[anchor=west, white] at (6.5,1.8) {\small C};
+
+  % Separador
+  \draw[gray] (0,1.1) -- (8,1.1);
+
+  % Alerta
+  \fill[vermelho!30] (0.1,0.5) rectangle (7.9,1.0);
+  \node[amarelo, anchor=west] at (0.3,0.75) {\small ! TDS acima do limite (1000 ppm)};
+
+  % Rodapé
+  \node[anchor=west] at (0.3,0.2) {\small Registrar};
+  \node[anchor=east] at (7.7,0.2) {\small Menu \textbf{>}};
+\end{tikzpicture}
+\caption{Layout da Tela 1 --- Monitoramento (320$\times$240, paisagem)}
+\label{fig:tela1}
+\end{figure}
+
+\subsection{Significado das Cores}
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Cor} & \textbf{Valor} & \textbf{Significado} \\
+\midrule
+Verde & \textcolor{verde}{■} & Parâmetro dentro do limite \\
+Vermelho & \textcolor{vermelho}{■} & Parâmetro fora do limite \\
+Amarelo & \textcolor{amarelo}{■} & Mensagem de alerta na faixa inferior \\
+Branco & \textcolor{black}{■} & Valor de temperatura (informativo) \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Limites Padrão de Alerta}
+
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Parâmetro} & \textbf{Mínimo} & \textbf{Máximo} & \textbf{Configurável} \\
+\midrule
+pH & 6,0 & 9,0 & Sim (Tela 6) \\
+TDS & --- & 1000 ppm & Sim (Tela 6) \\
+Turbidez & --- & 100 NTU & Sim (Tela 6) \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Ações dos Botões na Tela 1}
+
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Botão} & \textbf{Ação} \\
+\midrule
+Confirmar & Abre o Menu Principal \\
+Navegar & Sem efeito \\
+Voltar & Sem efeito (é o nível raiz) \\
+\bottomrule
+\end{tabularx}
+
+% ══════════════════════════════════════════════════════════════
+% 5. NAVEGAÇÃO PELOS MENUS
+% ══════════════════════════════════════════════════════════════
+\section{Navegação pelos Menus}
+
+\subsection{Botões Físicos}
+
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Botão} & \textbf{GPIO} & \textbf{Posição} & \textbf{Função} \\
+\midrule
+Navegar & GPIO 32 & Esquerda & Percorre itens do menu (circular) \\
+Confirmar & GPIO 33 & Centro & Seleciona item / salva valor \\
+Voltar & GPIO 25 & Direita & Retorna ao nível anterior \\
+\bottomrule
+\end{tabularx}
+
+\begin{itemize}[nosep]
+  \item Ligações: um terminal no GPIO, outro no GND
+  \item Configuração: \texttt{INPUT\_PULLUP} (sem resistor externo)
+  \item Debounce: 20\,ms por software
+  \item Anti-repetição: 200\,ms entre pressões aceitas
+\end{itemize}
+
+\subsection{Regras de Navegação}
+
+\begin{itemize}[nosep]
+  \item \textbf{Navegar} percorre os itens para baixo. Ao chegar no último, volta ao primeiro (comportamento circular).
+  \item \textbf{Confirmar} entra na opção selecionada ou salva um valor editado.
+  \item \textbf{Voltar} sobe um nível em qualquer tela. Na tela principal, não faz nada.
+  \item Em telas de edição (Configurações), \textbf{Navegar} incrementa o valor em vez de mover o cursor. O item em edição é destacado com \texttt{< valor >}.
+\end{itemize}
+
+\subsection{Mapa de Estados}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  state/.style={draw, rectangle, rounded corners, minimum height=0.7cm, minimum width=2.8cm, align=center, font=\small},
+  arr/.style={-{Stealth[length=2.5mm]}, thick},
+  lbl/.style={font=\scriptsize, midway, fill=white, inner sep=1pt}
+]
+
+\node[state, fill=verde!15] (mon) at (0,0) {\textbf{Monitoramento}};
+\node[state, fill=ciano!15] (menu) at (4.5,0) {\textbf{Menu Principal}};
+\node[state, fill=amarelo!15] (calM) at (9,0) {Calibração Menu};
+\node[state, fill=amarelo!15] (calF) at (9,-2) {Calibração Fluxo};
+\node[state, fill=gray!15] (reg) at (4.5,-2.5) {Registro};
+\node[state, fill=gray!15] (hist) at (0,-2.5) {Histórico};
+\node[state, fill=gray!15] (conf) at (0,-4.5) {Configurações};
+
+% Transições
+\draw[arr] (mon) -- node[lbl, above] {Confirmar} (menu);
+\draw[arr] (menu) -- node[lbl, above] {Voltar} (mon);
+\draw[arr] (menu) -- node[lbl, above] {Confirmar} (calM);
+\draw[arr] (calM) -- node[lbl, above] {Voltar} (menu);
+\draw[arr] (calM) -- node[lbl, right] {Confirmar} (calF);
+\draw[arr] (calF) -- node[lbl, right] {Voltar} (calM);
+\draw[arr] (menu) |- node[lbl, right, pos=0.25] {Confirmar} (reg);
+\draw[arr] (reg) -- node[lbl, above] {Voltar} (menu);
+\draw[arr] (menu) |- node[lbl, left, pos=0.25] {Confirmar} (hist);
+\draw[arr] (hist) -- node[lbl, above] {Voltar} (menu);
+\draw[arr] (menu) |- node[lbl, left, pos=0.25] {Confirmar} (conf);
+\draw[arr] (conf) -- node[lbl, above] {Voltar} (menu);
+
+\end{tikzpicture}
+\caption{Fluxograma de transições entre telas}
+\label{fig:fluxograma}
+\end{figure}
+
+\subsection{Tabela de Transições}
+
+\begin{tabularx}{\textwidth}{l X X X}
+\toprule
+\textbf{Estado Atual} & \textbf{Navegar} & \textbf{Confirmar} & \textbf{Voltar} \\
+\midrule
+Monitoramento & sem efeito & $\rightarrow$ Menu Principal & sem efeito \\
+Menu Principal & percorre 4 itens & $\rightarrow$ item selecionado & $\rightarrow$ Monitoramento \\
+Calibração Menu & percorre 3 sensores & $\rightarrow$ Calibração Fluxo & $\rightarrow$ Menu Principal \\
+Calibração Fluxo & sem efeito & avança passo / salva & $\rightarrow$ Calibração Menu \\
+Registro & percorre 5 rótulos & grava CSV $\rightarrow$ Menu & $\rightarrow$ Menu Principal \\
+Histórico & percorre registros & exibe detalhe & $\rightarrow$ Menu Principal \\
+Configurações & seleciona / incrementa & alterna modo edição & $\rightarrow$ Menu Principal \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Menu Principal --- Itens}
+
+\begin{enumerate}[nosep]
+  \item \textbf{Calibração} $\rightarrow$ Submenu de calibração dos sensores
+  \item \textbf{Histórico} $\rightarrow$ Visualização de registros salvos no SD
+  \item \textbf{Configurações} $\rightarrow$ Ajuste de limites e parâmetros
+  \item \textbf{Registrar amostra} $\rightarrow$ Salvamento de snapshot no SD
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════
+% 6. CALIBRAÇÃO
+% ══════════════════════════════════════════════════════════════
+\section{Calibração}
+
+A calibração é essencial para garantir medições precisas. Os coeficientes são salvos na NVS (flash do ESP32) e em backup no SD card.
+
+\subsection{Calibração do pH --- 3 Pontos}
+
+\subsubsection{Materiais Necessários}
+\begin{itemize}[nosep]
+  \item Solução tampão pH 7,00
+  \item Solução tampão pH 4,00
+  \item Solução tampão pH 10,01
+  \item Água destilada (para enxaguar o eletrodo)
+\end{itemize}
+
+\subsubsection{Procedimento}
+
+\begin{enumerate}[nosep]
+  \item Na Tela 1, pressione \textbf{Confirmar} $\rightarrow$ Menu Principal
+  \item Navegue até \textbf{Calibração} $\rightarrow$ \textbf{Confirmar}
+  \item Selecione \textbf{pH} $\rightarrow$ \textbf{Confirmar}
+  \item \textbf{Passo 1/3 --- pH 7,00:}
+  \begin{itemize}[nosep]
+    \item Mergulhe o eletrodo na solução pH 7,00
+    \item Aguarde a leitura estabilizar
+    \item Pressione \textbf{Confirmar} para gravar V7
+  \end{itemize}
+  \item \textbf{Passo 2/3 --- pH 4,00:}
+  \begin{itemize}[nosep]
+    \item Enxágue o eletrodo com água destilada
+    \item Mergulhe na solução pH 4,00
+    \item Aguarde estabilizar $\rightarrow$ \textbf{Confirmar} para gravar V4
+  \end{itemize}
+  \item \textbf{Passo 3/3 --- pH 10,01:}
+  \begin{itemize}[nosep]
+    \item Enxágue novamente
+    \item Mergulhe na solução pH 10,01
+    \item Aguarde estabilizar $\rightarrow$ \textbf{Confirmar} para gravar V10
+  \end{itemize}
+  \item O sistema calcula os coeficientes e exibe \textbf{``SALVO OK!''}
+  \item Pressione \textbf{Voltar} para retornar ao submenu
+\end{enumerate}
+
+\subsubsection{Equações de Calibração}
+
+\begin{equation}
+  \text{slope\_acid} = \frac{7{,}0 - 4{,}0}{V_7 - V_4}
+  \label{eq:slope_acid}
+\end{equation}
+
+\begin{equation}
+  \text{slope\_basic} = \frac{7{,}0 - 10{,}0}{V_7 - V_{10}}
+  \label{eq:slope_basic}
+\end{equation}
+
+\begin{equation}
+  \text{pH} = \begin{cases}
+    \text{slope\_acid} \times (V - V_7) + 7{,}0 & \text{se } V < V_7 \\
+    \text{slope\_basic} \times (V - V_7) + 7{,}0 & \text{se } V \geq V_7
+  \end{cases}
+  \label{eq:ph}
+\end{equation}
+
+\subsection{Calibração do TDS --- 1 Ponto}
+
+\subsubsection{Materiais Necessários}
+\begin{itemize}[nosep]
+  \item Solução padrão 1413\,$\mu$S/cm
+  \item Sensor DS18B20 (para compensação de temperatura)
+\end{itemize}
+
+\subsubsection{Procedimento}
+
+\begin{enumerate}[nosep]
+  \item Na Tela de Calibração, selecione \textbf{TDS} $\rightarrow$ \textbf{Confirmar}
+  \item Mergulhe a sonda TDS \textbf{e} o DS18B20 na solução padrão
+  \item Aguarde a leitura estabilizar
+  \item Pressione \textbf{Confirmar} para gravar
+  \item O coeficiente k é calculado e salvo automaticamente
+\end{enumerate}
+
+\subsubsection{Equação de Calibração}
+
+\begin{equation}
+  \text{EC}_{\text{bruto}} = \frac{V \times 1000}{2{,}3}
+  \label{eq:ec}
+\end{equation}
+
+\begin{equation}
+  \text{EC}_{25} = \frac{\text{EC}_{\text{bruto}}}{1 + 0{,}02 \times (T - 25)}
+  \label{eq:ec25}
+\end{equation}
+
+\begin{equation}
+  k = \frac{1413}{\text{EC}_{25}}
+  \label{eq:k}
+\end{equation}
+
+\begin{equation}
+  \text{TDS (ppm)} = \frac{\text{EC}_{\text{bruto}} \times k}{2 \times (1 + 0{,}02 \times (T - 25))}
+  \label{eq:tds}
+\end{equation}
+
+\subsection{Calibração da Turbidez --- 3 Amostras}
+
+\subsubsection{Materiais Necessários}
+\begin{itemize}[nosep]
+  \item Água destilada ($\sim$0\,NTU)
+  \item Solução de argila diluída ($\sim$50\,NTU)
+  \item Solução de argila concentrada ($\sim$500\,NTU)
+\end{itemize}
+
+\subsubsection{Procedimento}
+
+\begin{enumerate}[nosep]
+  \item Selecione \textbf{Turbidez} no submenu de calibração
+  \item \textbf{Passo 1/3:} Mergulhe na água destilada $\rightarrow$ \textbf{Confirmar} (grava V0)
+  \item \textbf{Passo 2/3:} Mergulhe na argila diluída $\rightarrow$ \textbf{Confirmar} (grava V50)
+  \item \textbf{Passo 3/3:} Mergulhe na argila concentrada $\rightarrow$ \textbf{Confirmar} (grava V500)
+  \item O sistema calcula a regressão polinomial e salva os coeficientes
+\end{enumerate}
+
+\subsubsection{Equação de Calibração}
+
+\begin{equation}
+  \text{NTU} = a \times V^2 + b \times V + c
+  \label{eq:ntu}
+\end{equation}
+
+Onde $a$, $b$ e $c$ são calculados a partir das três amostras conhecidas (0, 50 e 500\,NTU).
+
+\subsection{Persistência da Calibração}
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Dado} & \textbf{Onde fica} & \textbf{Sobrevive a} \\
+\midrule
+Coeficientes de calibração & NVS (flash ESP32) & Troca do SD, reboot \\
+Limites de alerta & NVS (flash ESP32) & Troca do SD, reboot \\
+Intervalo de leitura & NVS (flash ESP32) & Troca do SD, reboot \\
+Backup dos coeficientes & \texttt{cal\_backup.json} no SD & Reboot \\
+\bottomrule
+\end{tabularx}
+
+Ao salvar uma calibração, o sistema grava \textbf{duas vezes}: na NVS (primário) e no SD (backup). Se a NVS estiver vazia ou corrompidada, o sistema restaura automaticamente do backup.
+
+% ══════════════════════════════════════════════════════════════
+% 7. REGISTRO DE AMOSTRAS
+% ══════════════════════════════════════════════════════════════
+\section{Registro de Amostras}
+
+A Tela 4 permite salvar um \textbf{snapshot} dos valores atuais dos sensores no cartão SD, associado a um rótulo (nome da amostra).
+
+\subsection{Rótulos Disponíveis}
+
+\begin{enumerate}[nosep]
+  \item Água destilada
+  \item Água torneira
+  \item Rio / córrego
+  \item Amostra 1
+  \item Amostra 2
+\end{enumerate}
+
+\subsection{Procedimento}
+
+\begin{enumerate}[nosep]
+  \item Na Tela 1, pressione \textbf{Confirmar} $\rightarrow$ Menu Principal
+  \item Navegue até \textbf{Registrar amostra} $\rightarrow$ \textbf{Confirmar}
+  \item Selecione o rótulo desejado com \textbf{Navegar}
+  \item Pressione \textbf{Confirmar} para salvar
+  \item O dispositivo exibe uma confirmação e retorna ao Menu Principal
+\end{enumerate}
+
+\subsection{Formato do Arquivo CSV}
+
+O arquivo \texttt{agua\_log.csv} no SD card contém:
+
+\begin{lstlisting}[language=, caption={Cabeçalho do CSV}]
+timestamp,rotulo,ph,tds_ppm,turbidez_ntu,temperatura_c
+\end{lstlisting}
+
+\begin{lstlisting}[language=, caption={Exemplo de registro}]
+2025-06-15T14:32:00,Torneira,7.02,312.0,4.1,24.3
+2025-06-15T10:15:00,Rio,6.12,88.0,2.3,22.1
+2025-06-15T08:00:00,Destilada,7.00,1.0,0.5,23.8
+\end{lstlisting}
+
+O arquivo é aberto em modo \textbf{append} (nunca sobrescreve registros anteriores).
+
+% ══════════════════════════════════════════════════════════════
+% 8. HISTÓRICO
+% ══════════════════════════════════════════════════════════════
+\section{Histórico}
+
+A Tela 5 permite visualizar os registros salvos no cartão SD.
+
+\subsection{Navegação}
+
+\begin{itemize}[nosep]
+  \item \textbf{Navegar} percorre os registros (5 por página)
+  \item \textbf{Confirmar} exibe o detalhe do registro selecionado
+  \item \textbf{Voltar} retorna ao Menu Principal
+\end{itemize}
+
+\subsection{Exibição}
+
+\begin{itemize}[nosep]
+  \item Cada linha mostra: data/hora, rótulo e pH
+  \item Registros com pH \textbf{fora do limite} são exibidos em \textcolor{vermelho}{vermelho}
+  \item Registros com pH \textbf{dentro do limite} são exibidos em \textcolor{verde}{verde}
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════
+% 9. CONFIGURAÇÕES
+% ══════════════════════════════════════════════════════════════
+\section{Configurações}
+
+A Tela 6 permite ajustar os parâmetros do sistema.
+
+\subsection{Parâmetros Configuráveis}
+
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Parâmetro} & \textbf{Padrão} & \textbf{Incremento} & \textbf{Faixa} \\
+\midrule
+Limite pH mín & 6,0 & +0,1 & Até pH máx $-$ 0,1 \\
+Limite pH máx & 9,0 & +0,1 & Até 14,0 \\
+Limite TDS & 1000 ppm & +50 & Até 5000 ppm \\
+Limite turbidez & 100 NTU & +10 & Até 1000 NTU \\
+Intervalo leitura & 2 s & +1 & Até 60 s \\
+Arquivo log & agua\_log & --- & Somente exibição \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Procedimento de Edição}
+
+\begin{enumerate}[nosep]
+  \item Navegue até o parâmetro desejado
+  \item Pressione \textbf{Confirmar} para entrar no modo edição (aparece \texttt{< valor >})
+  \item Use \textbf{Navegar} para incrementar o valor
+  \item Pressione \textbf{Confirmar} para salvar e sair do modo edição
+  \item Pressione \textbf{Voltar} para cancelar (valor não é salvo)
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════
+% 10. SISTEMA DE ALERTAS
+% ══════════════════════════════════════════════════════════════
+\section{Sistema de Alertas}
+
+\subsection{Alertas Visuais}
+
+\begin{itemize}[nosep]
+  \item \textbf{Verde} --- parâmetro dentro do limite configurado
+  \item \textbf{Vermelho} --- parâmetro fora do limite
+  \item \textbf{Faixa de alerta} --- mensagem amarela na parte inferior da Tela 1
+\end{itemize}
+
+\subsection{Alertas Sonoros (Buzzer)}
+
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Padrão} & \textbf{Significado} \\
+\midrule
+1 bip curto (100\,ms) & Valor fora do limite \\
+2 bips rápidos (80\,ms) & Calibração salva ou amostra registrada \\
+3 bips lentos (200\,ms) & Falha no SD card ou sensor \\
+\bottomrule
+\end{tabularx}
+
+O buzzer está conectado ao GPIO 26.
+
+% ══════════════════════════════════════════════════════════════
+% 11. MANUTENÇÃO
+% ══════════════════════════════════════════════════════════════
+\section{Manutenção}
+
+\subsection{Substituição do Cartão SD}
+
+\begin{enumerate}[nosep]
+  \item Desligue o dispositivo
+  \item Remova o cartão SD
+  \item Copie o arquivo \texttt{agua\_log.csv} para o computador (se necessário)
+  \item Insira o novo cartão (FAT32, vazio ou com o CSV)
+  \item Ligue o dispositivo --- o arquivo será criado automaticamente se não existir
+\end{enumerate}
+
+\subsection{Recalibração}
+
+Recalibre o dispositivo quando:
+\begin{itemize}[nosep]
+  \item As medições parecerem imprecisas
+  \item Após trocar o eletrodo de pH
+  \item Após longo período sem uso
+  \item Quando as soluções tampão estiverem vencidas
+\end{itemize}
+
+\subsection{Troubleshooting}
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Problema} & \textbf{Causa Provável} & \textbf{Solução} \\
+\midrule
+Display em branco & TFT não inicializou & Verificar CS=5, DC=17, RST=4 e 3,3\,V \\
+Display de cabeça para baixo & Rotação errada & Alterar \texttt{setRotation()} em \texttt{display.cpp} \\
+Valores sempre zero & ADS1115 não responde & Verificar I²C (GPIO 21/22), TXS0108E, 5\,V \\
+SD não inicia & Cartão não inserido & Inserir cartão FAT32, verificar CS=15 \\
+pH inconsistente & Eletrodo sujo/velho & Recalibrar ou limpar eletrodo \\
+Temp $-$127\,C & DS18B20 desconectado & Verificar GPIO 13 e pull-up 4,7\,k$\Omega$ \\
+Botão não responde & GPIO errado & Verificar \texttt{INPUT\_PULLUP} e ligação $\rightarrow$ GND \\
+Bip contínuo & Falha de inicialização & Verificar conexões e cartão SD \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Checklist de Hardware}
+
+\begin{itemize}[nosep]
+  \item[$\square$] ESP32: GPIO 17 no DC do TFT (não GPIO 2)
+  \item[$\square$] TFT: CS=5, DC=17, RST=4, VCC=3,3\,V, BLK=3,3\,V
+  \item[$\square$] SD: CS=15, VCC=3,3\,V, FAT32 formatado
+  \item[$\square$] ADS1115: VDD=5\,V, ADDR=GND (0x48), SCL/SDA via TXS0108E
+  \item[$\square$] TXS0108E: VCCA=3,3\,V, VCCB=5\,V, OE=3,3\,V
+  \item[$\square$] DS18B20: VDD=3,3\,V, DATA=GPIO13, pull-up 4,7\,k$\Omega$
+  \item[$\square$] Sensores analógicos: VCC=5\,V, saídas em AIN0/1/2 do ADS1115
+  \item[$\square$] Botões: GPIO 32/33/25 $\rightarrow$ GND (sem resistor externo)
+  \item[$\square$] Buzzer: GPIO 26 $\rightarrow$ GND (verificar polaridade)
+  \item[$\square$] GND único e comum entre todos os componentes
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════
+% 12. ESPECIFICAÇÕES DO FIRMWARE
+% ══════════════════════════════════════════════════════════════
+\section{Especificações do Firmware}
+
+\subsection{Arquitetura de Módulos}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  mod/.style={draw, rectangle, minimum height=0.7cm, minimum width=2.2cm, align=center, font=\small},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+  lbl/.style={font=\scriptsize, midway, fill=white, inner sep=1pt}
+]
+
+\node[mod, fill=azul!15] (cfg) at (0,0) {config.h};
+\node[mod, fill=gray!15] (sen) at (-3,2) {sensores};
+\node[mod, fill=gray!15] (dis) at (0,2) {display};
+\node[mod, fill=gray!15] (btn) at (3,2) {botoes};
+\node[mod, fill=verde!15] (maq) at (1.5,3.5) {maquina};
+\node[mod, fill=amarelo!15] (nvs) at (4,3.5) {nvs\_cal};
+\node[mod, fill=amarelo!15] (sd) at (6,3.5) {sd\_log};
+\node[mod, fill=ciano!15] (buz) at (6,2) {buzzer};
+\node[mod, fill=gray!15] (web) at (6,0.5) {web (Fase 2)};
+\node[mod, fill=verde!10] (main) at (3,0.5) {main.cpp};
+
+% config.h para todos
+\draw[arr, dashed, gray] (cfg) -- (sen);
+\draw[arr, dashed, gray] (cfg) -- (dis);
+\draw[arr, dashed, gray] (cfg) -- (btn);
+\draw[arr, dashed, gray] (cfg) -- (maq);
+
+% dependências
+\draw[arr] (btn) -- node[lbl, above] {} (maq);
+\draw[arr] (maq) -- (dis);
+\draw[arr] (maq) -- (nvs);
+\draw[arr] (maq) -- (sd);
+\draw[arr] (maq) -- (buz);
+\draw[arr] (nvs) -- (sd);
+
+\end{tikzpicture}
+\caption{Dependências entre módulos do firmware}
+\label{fig:modulos}
+\end{figure}
+
+\textbf{Regra:} Apenas \texttt{maquina.h} importa \texttt{display.h}. Apenas \texttt{botoes.h} e \texttt{main.cpp} importam \texttt{maquina.h}.
+
+\subsection{Bibliotecas Utilizadas}
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Biblioteca} & \textbf{Versão Mín.} & \textbf{Módulo} \\
+\midrule
+Adafruit ST7735 and ST7789 Library & 1.11.0 & display \\
+Adafruit GFX Library & 1.11.0 & display \\
+Adafruit ADS1X15 & 2.5.0 & sensores \\
+OneWire & 2.3.7 & sensores \\
+DallasTemperature & 3.9.0 & sensores \\
+ArduinoJson & 6.21.0 & nvs\_cal (backup JSON) \\
+SD & built-in & sd\_log, nvs\_cal \\
+SPI & built-in & display, sd\_log \\
+Wire & built-in & sensores \\
+Preferences & built-in & nvs\_cal \\
+WiFi + WebServer & built-in & web (Fase 2) \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Estrutura de Arquivos}
+
+\begin{lstlisting}[language={}, caption={Estrutura do projeto PlatformIO}]
+monitor_agua/
+  platformio.ini
+  include/
+    config.h
+  src/
+    main.cpp
+    sensores.h / sensores.cpp
+    display.h  / display.cpp
+    botoes.h   / botoes.cpp
+    maquina.h  / maquina.cpp
+    nvs_cal.h  / nvs_cal.cpp
+    sd_log.h   / sd_log.cpp
+    buzzer.h   / buzzer.cpp
+    web.h      / web.cpp
+\end{lstlisting}
+
+\subsection{Dados de Memória}
+
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Recurso} & \textbf{Uso} & \textbf{Porcentagem} \\
+\midrule
+RAM & 22\,824 bytes / 327\,680 bytes & 7,0\% \\
+Flash & 392\,961 bytes / 1\,310\,720 bytes & 30,0\% \\
+\bottomrule
+\end{tabularx}
+
+% ══════════════════════════════════════════════════════════════
+% APÊNDICE
+% ══════════════════════════════════════════════════════════════
+\newpage
+\appendix
+\section{Glossário}
+
+\begin{description}[style=nextline]
+  \item[ADC] Analog-to-Digital Converter --- Conversor Analógico-Digital
+  \item[CS] Chip Select --- Seleção de chip (ativação do periférico SPI)
+  \item[DC] Data/Command --- Dado/Comando (controle do display)
+  \item[DS18B20] Sensor de temperatura digital (protocolo 1-Wire)
+  \item[GPIO] General Purpose Input/Port --- Pino de entrada/saída genérico
+  \item[I²C] Inter-Integrated Circuit --- Protocolo de comunicação serial
+  \item[IHM] Interface Homem-Máquina
+  \item[MVP] Minimum Viable Product --- Produto Mínimo Viável
+  \item[NTU] Nephelometric Turbidity Units --- Unidades de Turbidez
+  \item[NVS] Non-Volatile Storage --- Armazenamento Não-Volátil (flash do ESP32)
+  \item[ppm] Parts Per Million --- Partes por milhão (mg/L)
+  \item[SPI] Serial Peripheral Interface --- Protocolo de comunicação serial
+  \item[TDS] Total Dissolved Solids --- Total de Sólidos Dissolvidos
+  \item[TFT] Thin-Film Transistor --- Display de filme fino
+  \item[TXS0108E] Conversor de nível lógico bidirecional 8 canais
+\end{description}
+
+\end{document}

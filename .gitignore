@@ -1,0 +1,39 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+
+# External libraries (not part of this project)
+TFT_eSPI-2.5.43/
+
+# Build output
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+
+# Arduino
+*.ino.bak
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary
+*.tmp
+*.bak
+
+# Nova pasta (Fritzing custom parts)
+Nova pasta/
