@@ -147,12 +147,11 @@ Veja mais detalhes em [`calibracao_firmware.md`](calibracao_firmware.md).
 
 ## Documentação
 
-- [`relatorio_firmware.md`](relatorio_firmware.md) — Relatório técnico completo do firmware
 - [`calibracao_firmware.md`](calibracao_firmware.md) — Equações e contexto de calibração
 - [`arquitetura_firmware.md`](arquitetura_firmware.md) — Arquitetura de software
 - [`ihm_monitor_agua.md`](ihm_monitor_agua.md) — Especificação da interface
 - [`pinout.md`](pinout.md) — Pinout consolidado
-- [`prompt_codificacao_mvp.md`](prompt_codificacao_mvp.md) — Prompt de codificação
+
 
 ---
 
