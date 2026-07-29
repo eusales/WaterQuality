@@ -2,9 +2,9 @@
 
 Monitor portátil e independente de qualidade da água, desenvolvido com ESP32 DevKit V3. Mede **pH**, **TDS** (ppm), **Turbidez** (NTU) e **Temperatura** (°C) em tempo real, com exibição em display TFT colorido, registro em cartão SD e calibração completa.
 
-**Projeto:** Instrumentação Industrial II — UFMT  
+**Projeto:** WaterQuality  
 **Autor:** Matheus Sales  
-**Disciplina:** Engenharia de Controle e Automação
+**Disciplina:** (Instrumentação Industrial II) Engenharia de Controle e Automação - UFMT
 
 ---
 
