@@ -8,9 +8,9 @@ Projeto acadêmico de um instrumento portátil com **ESP32**, desenvolvido para 
 
 ## Visão do projeto
 
-![Diagrama de montagem do WaterQuality com ESP32, display TFT, microSD, ADS1115, conversor de nível, sensores e botões](WaterQuality.jpg)
+![Diagrama de montagem do WaterQuality com ESP32, display TFT, microSD, ADS1115, conversor de nível, sensores e botões](hardware/images/WaterQuality.jpg)
 
-Diagrama de referência disponível no repositório. O arquivo editável é [WaterQuality1.fzz](WaterQuality1.fzz), para abrir no Fritzing. Existem divergências de pinagem entre os materiais e o firmware; confira a tabela abaixo antes de reproduzir a montagem.
+Diagrama de referência disponível no repositório. O arquivo editável é [WaterQuality1.fzz](hardware/fritzing/WaterQuality1.fzz), para abrir no Fritzing. Existem divergências de pinagem entre os materiais e o firmware; confira a tabela abaixo antes de reproduzir a montagem.
 
 ## Como o sistema funciona
 
@@ -36,28 +36,30 @@ O firmware principal está em **`monitor_agua/`**. Os sketches de teste são pro
 
 ```text
 WaterQuality/
-├── README.md
-├── monitor_agua/                 # Projeto principal PlatformIO
-│   ├── platformio.ini           # Placa, framework e dependências
-│   ├── include/config.h         # GPIOs, limites, estruturas e flags
-│   └── src/                     # Módulos do firmware
-├── 3D/                          # Peças do invólucro em STL
-├── WaterQuality.jpg             # Diagrama de montagem
-├── WaterQuality1.fzz            # Projeto editável no Fritzing
-├── pinout.md                    # Tabela de ligações (com divergências)
-├── pinout_WaterQuality.xlsx     # Planilha de pinagem
-├── arquitetura_firmware.md      # Arquitetura e responsabilidades
-├── calibracao_firmware.md       # Equações e procedimentos propostos
-├── ihm_monitor_agua.md          # Especificação da interface
-├── teste_ihm.md                 # Roteiro de teste da interface
-├── teste_ihm/                   # Sketch da IHM com dados simulados
-├── teste_displaytft/            # Teste isolado do display
-├── teste_display_microsd/       # Teste de display e cartão SD
-├── teste_turbidez/              # Teste isolado de turbidez
-├── relatorio_testes_sensores.docx
-├── include/                     # README auxiliar do template PlatformIO
-├── lib/                         # README auxiliar do template PlatformIO
-└── test/                        # README auxiliar do template PlatformIO
+├── README.md                    # Apresentação e início rápido
+├── monitor_agua/                 # Firmware principal (PlatformIO)
+│   ├── platformio.ini
+│   ├── include/                 # Configuração e cabeçalhos globais
+│   ├── src/                     # Módulos do firmware
+│   ├── lib/                     # Espaço para bibliotecas locais
+│   └── test/                    # Espaço para testes do PlatformIO
+├── docs/                        # Documentação técnica
+│   ├── README.md                # Índice da documentação
+│   ├── firmware/                # Arquitetura e calibração
+│   ├── hardware/                # Pinout e planilha de ligações
+│   ├── ihm/                     # Especificação e roteiro de teste
+│   └── reports/                 # Relatório de testes dos sensores
+├── hardware/                    # Arquivos físicos e diagrama
+│   ├── README.md
+│   ├── images/                  # Imagem de montagem usada neste README
+│   ├── fritzing/                # Projeto editável do circuito
+│   └── 3d/                      # Peças do invólucro em STL
+└── examples/                    # Sketches Arduino independentes
+    ├── README.md
+    ├── teste_ihm/
+    ├── teste_displaytft/
+    ├── teste_display_microsd/
+    └── legacy/teste_rfid/        # Sketch legado que estava nomeado como turbidez
 ```
 
 ### Módulos do firmware principal
@@ -74,7 +76,9 @@ WaterQuality/
 | `buzzer.h/.cpp` | Rotinas de sinalização sonora |
 | `web.h/.cpp` | Base para futura interface HTTP |
 
-A separação atual por módulos atende ao MVP. Os arquivos de projeto, documentação, testes e modelos 3D foram mantidos nos caminhos existentes para preservar as referências.
+O firmware principal permanece em `monitor_agua/`. A documentação foi agrupada em `docs/`, os arquivos de montagem em `hardware/` e os sketches independentes em `examples/`. Veja os índices de [documentação](docs/README.md), [hardware](hardware/README.md) e [exemplos](examples/README.md).
+
+O antigo `teste_turbidez.ino` contém um exemplo de RFID com MFRC522. Ele foi preservado em `examples/legacy/teste_rfid/`, com nome compatível com seu conteúdo. Não há um teste isolado de turbidez nesse sketch.
 
 ## Hardware e pinagem
 
@@ -175,11 +179,11 @@ Substitua `COM5` pela porta do seu ESP32. Consulte também o [guia oficial do Pl
 
 Os nomes de arquivos previstos no cartão são `/agua_log.csv` para amostras e `/cal_backup.json` para coeficientes. O histórico e a restauração do backup possuem as limitações listadas a seguir.
 
-Para explorar apenas a interface com valores simulados, consulte [`teste_ihm.md`](teste_ihm.md) e o sketch [`teste_ihm.ino`](teste_ihm/teste_ihm.ino). Esse teste é separado do firmware principal.
+Para explorar apenas a interface com valores simulados, consulte [`teste_ihm.md`](docs/ihm/teste_ihm.md) e o sketch [`teste_ihm.ino`](examples/teste_ihm/teste_ihm.ino). Esse teste é separado do firmware principal.
 
 ## Calibração e estado atual
 
-Os procedimentos e equações propostos estão em [`calibracao_firmware.md`](calibracao_firmware.md): pH em três pontos, TDS com referência de condutividade e turbidez em três pontos. O fluxo implementado ainda precisa ser corrigido para capturar a tensão bruta do sensor selecionado. A presença das telas de calibração não significa que o resultado foi validado.
+Os procedimentos e equações propostos estão em [`calibracao_firmware.md`](docs/firmware/calibracao_firmware.md): pH em três pontos, TDS com referência de condutividade e turbidez em três pontos. O fluxo implementado ainda precisa ser corrigido para capturar a tensão bruta do sensor selecionado. A presença das telas de calibração não significa que o resultado foi validado.
 
 ### Pendências identificadas na leitura do código
 
@@ -193,20 +197,20 @@ Os procedimentos e equações propostos estão em [`calibracao_firmware.md`](cal
 | Alarme sonoro | Existe `bipAlerta()`, mas o fluxo de avaliação dos limites não o chama | Integrar a sinalização ao tratamento de alertas |
 | Web | `FASE2_WEB` está desativado; `setup()` não chama `inicializarWeb()` | Completar e testar a inicialização antes de anunciar acesso HTTP |
 
-Esta atualização trata da documentação e da organização. O firmware foi preservado. Não foi realizada nova compilação nem validação em bancada nesta revisão; métricas anteriores de RAM/Flash não são apresentadas como resultados atuais.
+Esta atualização reorganiza os arquivos de apoio e a documentação. O código e a configuração de compilação do firmware foram preservados. Não foi realizada nova compilação nem validação em bancada nesta revisão; métricas anteriores de RAM/Flash não são apresentadas como resultados atuais.
 
 ## Documentação e arquivos de apoio
 
 | Recurso | Conteúdo |
 | --- | --- |
-| [Arquitetura de firmware](arquitetura_firmware.md) | Organização dos módulos e projeto da solução |
-| [Calibração](calibracao_firmware.md) | Equações e procedimentos propostos |
-| [Especificação da IHM](ihm_monitor_agua.md) | Telas e navegação |
-| [Teste da IHM](teste_ihm.md) | Procedimento isolado com dados simulados |
-| [Pinout](pinout.md) e [planilha](pinout_WaterQuality.xlsx) | Referências de montagem a consolidar |
-| [Modelos 3D](3D/) | Arquivos STL do invólucro |
-| [Projeto Fritzing](WaterQuality1.fzz) | Diagrama editável |
-| [Relatório de testes dos sensores](relatorio_testes_sensores.docx) | Documento de apoio |
+| [Arquitetura de firmware](docs/firmware/arquitetura_firmware.md) | Organização dos módulos e projeto da solução |
+| [Calibração](docs/firmware/calibracao_firmware.md) | Equações e procedimentos propostos |
+| [Especificação da IHM](docs/ihm/ihm_monitor_agua.md) | Telas e navegação |
+| [Teste da IHM](docs/ihm/teste_ihm.md) | Procedimento isolado com dados simulados |
+| [Pinout](docs/hardware/pinout.md) e [planilha](docs/hardware/pinout_WaterQuality.xlsx) | Referências de montagem a consolidar |
+| [Modelos 3D](hardware/3d/) | Arquivos STL do invólucro |
+| [Projeto Fritzing](hardware/fritzing/WaterQuality1.fzz) | Diagrama editável |
+| [Relatório de testes dos sensores](docs/reports/relatorio_testes_sensores.docx) | Documento de apoio |
 
 Os documentos de projeto descrevem também comportamentos pretendidos. Para avaliar o que está implementado nesta versão, compare-os com o código em `monitor_agua/` e com as pendências acima.
 
